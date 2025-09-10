@@ -13,9 +13,12 @@ import { XR_BUTTONS } from 'gamepad-wrapper';
 import {gsap} from 'gsap';
 import { init } from './init.js';
 
-const forwardVector = new THREE.Vector3(0, 0, -1);
-const ballSpeed = 2;
-const ballTimeToLive = 3;
+const ballSpeed = 8;
+const launchAngle = THREE.MathUtils.degToRad(60);
+const launchVector = new THREE.Vector3(0, Math.sin(launchAngle) * ballSpeed, -Math.cos(launchAngle) * ballSpeed);
+const gravity = new THREE.Vector3(0, -9.8, 0);
+
+const ballTimeToLive = 2;
 
 let ball = null;
 
@@ -43,40 +46,22 @@ function updateScoreDisplay() {
 
 function moveRingUp() {
     gsap.to(ring.position, {
-        duration: 1,
-        x: ring.position.x,
-        y: 2,
-        z: ring.position.z,
+        duration: 2,
+        y: 4,
+        ease: 'sine.inOut',
         onComplete: () => {
-            gsap.to(ring.position, {
-                duration: 1,
-                x: ring.position.x,
-                y: 4,
-                z: ring.position.z,
-                onComplete: () => {
-                    moveRingDown();
-                }
-            });
+            moveRingDown();
         }
     });
 }
 
 function moveRingDown() {
     gsap.to(ring.position, {
-        duration: 1,
-        x: ring.position.x,
-        y: 2,
-        z: ring.position.z,
+        duration: 2,
+        y: 0,
+        ease: 'sine.inOut',
         onComplete: () => {
-            gsap.to(ring.position, {
-                duration: 1,
-                x: ring.position.x,
-                y: 0,
-                z: ring.position.z,
-                onComplete: () => {
-                    moveRingUp();
-                }
-            });
+            moveRingUp();
         }
     });
 }
@@ -136,9 +121,9 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
         if (controller) {
             const {gamepad, raySpace, mesh} = controller;
 
-            // todo: fix hitbox for launcher
             const raycaster = new THREE.Raycaster();
             raycaster.setFromXRController(raySpace);
+
             const intersections = raycaster.intersectObjects(scene.children, true).map(obj => obj.object).map(obj => obj.name);
             if (intersections.includes('Launcher')) {
                 if (i == 1) {
@@ -166,7 +151,7 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
                         ballPrototype.getWorldQuaternion(ball.quaternion);
                         
                         ball.userData = {
-                            velocity: forwardVector.clone().multiplyScalar(ballSpeed),
+                            velocity: launchVector.clone(),
                             timeToLive: ballTimeToLive,
                         };
                     }
@@ -193,10 +178,18 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
 
     if (ball != null) {
         if (ball.userData.timeToLive < 0) {
-            scene.remove(ball);
-            ball = null;
+            gsap.to(ball.scale, {
+                duration: 0.2,
+                x: 0,
+                y: 0,
+                z: 0,
+                onComplete: () => {
+                    scene.remove(ball);
+                    ball = null;
+                }
+            });
         } else {
-            // todo: change for arc movement
+            ball.userData.velocity.add(gravity.clone().multiplyScalar(delta));
             const deltaVec = ball.userData.velocity.clone().multiplyScalar(delta);
             ball.position.add(deltaVec);
             ball.userData.timeToLive -= delta;
