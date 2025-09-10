@@ -20,6 +20,8 @@ const ballTimeToLive = 3;
 let ball = null;
 
 let launcher, ring;
+let defaultMaterial;
+const highlightMaterial = new THREE.MeshStandardMaterial({ color: 'yellow' });
 
 let score = 0;
 const scoreText = new Text();
@@ -89,6 +91,7 @@ function setupScene({ scene, camera, renderer, player, controllers }) {
     gltfLoader.load('assets/launcher.glb', gltf => {
         launcher = gltf.scene;
         launcher.position.set(0, 2, -1);
+        defaultMaterial = launcher.getObjectByName('Launcher').material;
         scene.add(launcher);
     });
 
@@ -125,17 +128,26 @@ function setupScene({ scene, camera, renderer, player, controllers }) {
 }
 
 function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
-	const controllerConfigs = [controllers.right, controllers.left];
-    
-    controllerConfigs.forEach((controller) => {
+    const controllerConfigs = [controllers.right, controllers.left];
+    let hittingLauncherLeft = false;
+    let hittingLauncherRight = false;
+    for (let i = 0; i < 2; i++) {
+        const controller = controllerConfigs[i];
         if (controller) {
             const {gamepad, raySpace, mesh} = controller;
 
-            if (gamepad.getButtonClick(XR_BUTTONS.TRIGGER)) {
-                const raycaster = new THREE.Raycaster();
-                raycaster.setFromXRController(controller.raySpace);
-                const intersections = raycaster.intersectObjects(scene.children, true).map(obj => obj.object).map(obj => obj.name);
-                if (intersections.includes("Launcher") && ball == null) {
+            // todo: fix hitbox for launcher
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromXRController(raySpace);
+            const intersections = raycaster.intersectObjects(scene.children, true).map(obj => obj.object).map(obj => obj.name);
+            if (intersections.includes('Launcher')) {
+                if (i == 1) {
+                    hittingLauncherLeft = true;
+                } else {
+                    hittingLauncherRight = true;
+                }
+
+                if (gamepad.getButtonClick(XR_BUTTONS.TRIGGER) && ball == null) {
                     const ballPrototype = launcher.getObjectByName('Ball');
                     if (ballPrototype) {
                         try {
@@ -159,21 +171,37 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
                         };
                     }
                 }
+            } else {
+                if (i == 1) {
+                    hittingLauncherLeft = false;
+                } else {
+                    hittingLauncherRight = false;
+                }
             }
         }
-    });
+    };
+    
+    if (hittingLauncherLeft || hittingLauncherRight) {
+        if (launcher) {
+            launcher.getObjectByName('Launcher').material = highlightMaterial;
+        }
+    } else {
+        if (launcher) {
+            launcher.getObjectByName('Launcher').material = defaultMaterial;
+        }
+    }
 
     if (ball != null) {
         if (ball.userData.timeToLive < 0) {
             scene.remove(ball);
             ball = null;
         } else {
-            // change for arc movement
+            // todo: change for arc movement
             const deltaVec = ball.userData.velocity.clone().multiplyScalar(delta);
             ball.position.add(deltaVec);
             ball.userData.timeToLive -= delta;
 
-            // update score on made shot, with sound
+            // todo: update score on made shot, with sound
         }
     }
 
