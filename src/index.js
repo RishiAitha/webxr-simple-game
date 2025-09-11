@@ -164,6 +164,7 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
                         ball.userData = {
                             velocity: launchVector.clone(),
                             timeToLive: ballTimeToLive,
+                            deleting: false,
                         };
                     }
                 }
@@ -188,7 +189,8 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
     }
 
     if (ball != null) {
-        if (ball.userData.timeToLive < 0) {
+        if (ball.userData.timeToLive < 0 && !ball.userData.deleting) {
+            ball.userData.deleting = true;
             gsap.to(ball.scale, {
                 duration: 0.2,
                 x: 0,
