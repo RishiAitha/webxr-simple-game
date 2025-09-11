@@ -18,13 +18,13 @@ const launchAngle = THREE.MathUtils.degToRad(60);
 const launchVector = new THREE.Vector3(0, Math.sin(launchAngle) * ballSpeed, -Math.cos(launchAngle) * ballSpeed);
 const gravity = new THREE.Vector3(0, -9.8, 0);
 
-const ballTimeToLive = 2;
+const ballTimeToLive = 1.75;
 
 let ball = null;
 
-let launcher, ring;
+let launcher, ring, arrow;
 let defaultMaterial;
-const highlightMaterial = new THREE.MeshStandardMaterial({ color: 'yellow' });
+const highlightMaterial = new THREE.MeshStandardMaterial({ color: 'green' });
 
 let score = 0;
 const scoreText = new Text();
@@ -36,6 +36,8 @@ scoreText.anchorX = 'center';
 scoreText.anchorY = 'middle';
 
 let laserSound, scoreSound;
+
+let isScoring = false;
 
 function updateScoreDisplay() {
     const clampedScore = Math.max(0, Math.min(9999, score));
@@ -76,7 +78,6 @@ function setupScene({ scene, camera, renderer, player, controllers }) {
     gltfLoader.load('assets/launcher.glb', gltf => {
         launcher = gltf.scene;
         launcher.position.set(0, 2, -1);
-        defaultMaterial = launcher.getObjectByName('Launcher').material;
         scene.add(launcher);
     });
 
@@ -85,8 +86,18 @@ function setupScene({ scene, camera, renderer, player, controllers }) {
         ring.position.set(0, 0, -6);
         ring.rotateY(Math.PI / 2);
         ring.rotateZ(-Math.PI / 6);
+        ring.scale.set(0.75, 0.75, 0.75);
         scene.add(ring);
         moveRingUp();
+    });
+
+    gltfLoader.load('assets/arrow.glb', gltf => {
+        arrow = gltf.scene;
+        arrow.position.set(0, 2.5, -1);
+        arrow.rotateX(-Math.PI / 6);
+        arrow.scale.set(0.3, 0.3, 0.3);
+        defaultMaterial = arrow.getObjectByName('Arrow').material;
+        scene.add(arrow);
     });
 
     scene.add(scoreText);
@@ -144,7 +155,7 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
                         if (laserSound.isPlaying) laserSound.stop();
                         laserSound.play();
 
-                        ball = ballPrototype.clone();
+                        ball = ballPrototype.clone(true);
                         ball.scale.set(0.2, 0.2, 0.2);
                         scene.add(ball);
                         ballPrototype.getWorldPosition(ball.position);
@@ -167,12 +178,12 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
     };
     
     if (hittingLauncherLeft || hittingLauncherRight) {
-        if (launcher) {
-            launcher.getObjectByName('Launcher').material = highlightMaterial;
+        if (arrow) {
+            arrow.getObjectByName('Arrow').material = highlightMaterial;
         }
     } else {
-        if (launcher) {
-            launcher.getObjectByName('Launcher').material = defaultMaterial;
+        if (arrow) {
+            arrow.getObjectByName('Arrow').material = defaultMaterial;
         }
     }
 
@@ -194,7 +205,31 @@ function onFrame(delta, time, {scene, camera, renderer, player, controllers}) {
             ball.position.add(deltaVec);
             ball.userData.timeToLive -= delta;
 
-            // todo: update score on made shot, with sound
+            const distance = ring.position.distanceTo(ball.position);
+
+            if (distance <= 0.65 && !isScoring) {
+                isScoring = true;
+
+                score += 10;
+                updateScoreDisplay();
+
+                if (scoreSound.isPlaying) scoreSound.stop();
+                scoreSound.play();
+                
+                setTimeout(() => {
+                    gsap.to(ball.scale, {
+                        duration: 0.2,
+                        x: 0,
+                        y: 0,
+                        z: 0,
+                        onComplete: () => {
+                            scene.remove(ball);
+                            ball = null;
+                            isScoring = false;
+                        }
+                    });
+                }, 200);
+            }
         }
     }
 
